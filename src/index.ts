@@ -27,10 +27,7 @@ dotenv.config();
 
 // Configuration settings
 const CONFIG = {
-  // Required settings
   NOTION_API_KEY: process.env.NOTION_API_KEY,
-
-  // Optional settings with defaults
   DEBUG: process.env.DEBUG === "true",
   REQUIRE_CONFIRMATION_FOR_CREATE:
     process.env.REQUIRE_CONFIRMATION_FOR_CREATE !== "false",
@@ -57,7 +54,7 @@ if (!CONFIG.NOTION_API_KEY) {
   process.exit(1);
 }
 
-// Setup debug logging
+// Setup debug logging (writes to stderr so it won't interfere with JSON responses)
 const debug = (message: string, ...args: any[]) => {
   if (CONFIG.DEBUG) {
     console.error(`[DEBUG] ${message}`, ...args);
@@ -85,7 +82,6 @@ server.resource("Notion Databases", "notion://databases", async () => {
   try {
     const databases = await fetchDatabases(notion);
     const jsonContent = JSON.stringify(databases, null, 2);
-
     return {
       contents: [
         {
@@ -105,29 +101,22 @@ server.resource("Notion Databases", "notion://databases", async () => {
   }
 });
 
-// Resource: Database schema (structure, fields, etc.)
+// Resource: Database Schema
 server.resource(
   "Database Schema",
   "notion://databases/{databaseId}/schema",
   async (uri) => {
     try {
-      // Extract databaseId from URL parameters
       const url = new URL(uri.toString());
-      const path = url.pathname;
-      const matches = path.match(/\/databases\/([^\/]+)\/schema/);
-
+      const matches = url.pathname.match(/\/databases\/([^\/]+)\/schema/);
       if (!matches || !matches[1]) {
         throw new Error("Invalid database ID in resource URI");
       }
-
       const databaseId = matches[1];
-
       const response = await notion.databases.retrieve({
         database_id: databaseId,
       });
-
       const jsonContent = JSON.stringify(response.properties, null, 2);
-
       return {
         contents: [
           {
@@ -148,26 +137,20 @@ server.resource(
   }
 );
 
-// Resource: Database content (all pages/items in a database)
+// Resource: Database Content
 server.resource(
   "Database Content",
   "notion://databases/{databaseId}/content",
   async (uri) => {
     try {
-      // Extract databaseId from URL parameters
       const url = new URL(uri.toString());
-      const path = url.pathname;
-      const matches = path.match(/\/databases\/([^\/]+)\/content/);
-
+      const matches = url.pathname.match(/\/databases\/([^\/]+)\/content/);
       if (!matches || !matches[1]) {
         throw new Error("Invalid database ID in resource URI");
       }
-
       const databaseId = matches[1];
-
       const pages = await fetchPages(notion, databaseId);
       const jsonContent = JSON.stringify(pages, null, 2);
-
       return {
         contents: [
           {
@@ -188,23 +171,17 @@ server.resource(
   }
 );
 
-// Resource: Page content
+// Resource: Page Content
 server.resource("Page Content", "notion://pages/{pageId}", async (uri) => {
   try {
-    // Extract pageId from URL parameters
     const url = new URL(uri.toString());
-    const path = url.pathname;
-    const matches = path.match(/\/pages\/([^\/]+)/);
-
+    const matches = url.pathname.match(/\/pages\/([^\/]+)/);
     if (!matches || !matches[1]) {
       throw new Error("Invalid page ID in resource URI");
     }
-
     const pageId = matches[1];
-
     const content = await fetchPageContent(notion, pageId);
     const jsonContent = JSON.stringify(content, null, 2);
-
     return {
       contents: [
         {
@@ -224,12 +201,11 @@ server.resource("Page Content", "notion://pages/{pageId}", async (uri) => {
   }
 });
 
-// Resource: Recent updates (activity feed)
+// Resource: Recent Updates
 server.resource("Recent Updates", "notion://updates", async (uri) => {
   try {
     const updates = await fetchRecentUpdates(notion);
     const jsonContent = JSON.stringify(updates, null, 2);
-
     return {
       contents: [
         {
@@ -246,6 +222,180 @@ server.resource("Recent Updates", "notion://updates", async (uri) => {
         error instanceof Error ? error.message : String(error)
       }`
     );
+  }
+});
+
+server.resource("Help", "notion://help", async (uri) => {
+  try {
+    const helpContent = `
+# Help Documentation
+
+This documentation provides detailed information about the available Notion API endpoints, tools, and prompts provided by this MCP server. Use this guide to understand commands, their parameters, and expected outputs.
+
+---
+
+## Endpoints
+
+### 1. List Databases
+**URI:** \`notion://databases\`  
+**Description:** Lists all databases in the workspace.  
+**Example Usage:**  
+\`\`\`
+GET notion://databases
+\`\`\`
+**Response:** A JSON array of databases with their IDs, titles, URLs, creation time, and last edited time.
+
+---
+
+### 2. Retrieve Database Schema
+**URI:** \`notion://databases/{databaseId}/schema\`  
+**Description:** Retrieves the schema of a specific database.  
+**Example Usage:**  
+\`\`\`
+GET notion://databases/abc123/schema
+\`\`\`
+**Response:** A JSON object containing property definitions for the database (e.g., field names and types).
+
+---
+
+### 3. Retrieve Database Content
+**URI:** \`notion://databases/{databaseId}/content\`  
+**Description:** Retrieves the content (pages) of a specific database.  
+**Example Usage:**  
+\`\`\`
+GET notion://databases/abc123/content
+\`\`\`
+**Response:** A JSON object containing pages with their IDs, titles, URLs, creation time, last edited time, and properties.
+
+---
+
+### 4. Retrieve Page Content
+**URI:** \`notion://pages/{pageId}\`  
+**Description:** Retrieves the content of a specific page.  
+**Example Usage:**  
+\`\`\`
+GET notion://pages/xyz456
+\`\`\`
+**Response:** A JSON object containing page properties and blocks (nested content).
+
+---
+
+### 5. Recent Updates
+**URI:** \`notion://updates\`  
+**Description:** Retrieves recent updates in the workspace.  
+**Example Usage:**  
+\`\`\`
+GET notion://updates
+\`\`\`
+**Response:** A JSON array of recently updated items (pages or databases) with their IDs, titles, URLs, and last edited times.
+
+---
+
+## Tools
+
+### 1. Search Notion
+**Name:** \`search-notion\`  
+**Description:** Search for content in Notion using a query string and optional filters.  
+**Parameters:**
+- \`query (string)\`: The search query.
+- \`filter (object)\`: Optional filters (e.g., object type: "page" or "database").  
+
+**Example Usage:**
+\`\`\`
+POST search-notion
+{
+  "query": "Project",
+  "filter": { "object": "page" }
+}
+\`\`\`
+
+---
+
+### 2. Create Page
+**Name:** \`create-page\`  
+**Description:** Create a new page in Notion under a specified parent (database or page).  
+**Parameters:**
+- \`parent (object)\`: Parent container for the new page (\`databaseId\` or \`pageId\`).  
+- \`properties (object)\`: Page properties according to database schema.  
+- \`content (array)\`: Optional content blocks for the page.
+
+---
+
+### 3. Update Page
+**Name:** \`update-page\`  
+**Description:** Update an existing page's properties or content blocks in Notion.  
+**Parameters:**
+- \`pageId (string)\`: ID of the page to update.
+- \`properties (object)\`: Page properties to update.
+- \`content (array)\`: New page content blocks.
+- \`skipBackup (boolean)\`: Skip creating a backup before updating.
+
+---
+
+### 4. Delete Page
+**Name:** \`delete-page\`  
+**Description:** Archive a page in Notion (mark it as deleted).  
+**Parameters:**
+- \`pageId (string)\`: ID of the page to delete.
+- \`skipBackup (boolean)\`: Skip creating a backup before deletion.
+
+---
+
+### 5. Manage Backups
+**Name:** \`manage-backups\`  
+**Description:** Perform actions on backups for pages in Notion.  
+**Parameters:**
+- \`action (string)\`: Action to perform (\`list\`, \`restore\`, or \`cleanup\`).  
+- \`pageId (string)\`: ID of the page for backup operations.
+- Additional parameters depend on the action.
+
+---
+
+### 6. Generate Context Summary
+**Name:** \`generate-context-summary\`  
+**Description:** Generate a summary of recent updates in the workspace context.  
+**Parameters:**
+- \`maxItems (number)\`: Maximum number of items to include in the summary.
+
+---
+
+## Prompts
+
+### 1. Upcoming Deadlines
+**Name:** \`upcoming-deadlines\`  
+**Description:** Get a list of upcoming deadlines from tasks in Notion databases within a specified time frame.  
+
+---
+
+### 2. Project Status
+**Name:** \`project-status\`  
+**Description:** Summarize the status of a project including completion percentage, milestones achieved, upcoming deadlines, blockers, and team members involved.
+
+---
+
+### 3. Daily Tasks
+**Name:** \`daily-tasks\`  
+**Description:** Get a list of tasks due today with priority levels and dependencies.
+
+---
+
+## Notes
+
+For more details on Notion API capabilities, refer to [Notion API Documentation](https://developers.notion.com/docs). This MCP server integrates directly with Notion's API to provide seamless functionality.
+    `;
+
+    return {
+      contents: [
+        {
+          uri: uri.toString(),
+          text: helpContent,
+          mimeType: "text/plain",
+        },
+      ],
+    };
+  } catch (error) {
+    console.error("Error providing help context:", error);
+    throw new Error("Failed to provide help context.");
   }
 });
 
@@ -297,6 +447,47 @@ server.tool(
   }
 );
 
+server.tool(
+  "create-database",
+  "Create new database",
+  {
+    parentPageId: z.string(),
+    title: z.string(),
+    properties: z.record(z.any()),
+  },
+  async ({ parentPageId, title, properties }) => {
+    try {
+      const newDatabase = await notion.databases.create({
+        parent: { page_id: parentPageId },
+        title: [{ text: { content: title } }],
+        properties,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Database created successfully. ID: ${newDatabase.id}`,
+          },
+        ],
+      };
+    } catch (error) {
+      console.error("Error creating database:", error);
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: `Error creating database: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Tool: Create a new page
 server.tool(
   "create-page",
@@ -318,22 +509,15 @@ server.tool(
   },
   async ({ parent, properties, content }) => {
     try {
-      // Validation - must have either databaseId or pageId
       if (!parent.databaseId && !parent.pageId) {
         throw new Error("Either databaseId or pageId is required in parent");
       }
-
-      // Create confirmation message
       const parentType = parent.databaseId ? "database" : "page";
       const parentId = parent.databaseId || parent.pageId;
       const confirmationMessage = `You are about to create a new page in ${parentType} (${parentId}). Do you want to proceed?`;
+      debug(confirmationMessage);
 
-      // This would normally require user confirmation
-      console.log(confirmationMessage);
-
-      // Proceed with creation
       const newPage = await createPage(notion, parent, properties, content);
-
       return {
         content: [
           {
@@ -378,32 +562,22 @@ server.tool(
   },
   async ({ pageId, properties, content, skipBackup }) => {
     try {
-      // Validation - must have either properties or content
       if (!properties && !content) {
         throw new Error("Either properties or content must be provided");
       }
-
-      // Create confirmation message
       const confirmationMessage = `You are about to update page (${pageId}). This will modify its content. Do you want to proceed?`;
+      debug(confirmationMessage);
 
-      // This would normally require user confirmation
-      console.log(confirmationMessage);
-
-      // Create a backup first unless explicitly skipped
       let backupInfo = null;
       if (!skipBackup) {
         try {
           backupInfo = await backupPage(notion, pageId);
-          console.log(`Created backup at ${backupInfo.backupPath}`);
+          debug(`Created backup at ${backupInfo.backupPath}`);
         } catch (backupError) {
           console.error("Failed to create backup:", backupError);
-          // Continue with the update, but log the backup failure
         }
       }
-
-      // Proceed with update
       await updatePage(notion, pageId, properties, content);
-
       return {
         content: [
           {
@@ -445,26 +619,19 @@ server.tool(
   },
   async ({ pageId, skipBackup }) => {
     try {
-      // Create confirmation message with strong warning
       const confirmationMessage = `⚠️ WARNING: You are about to DELETE page (${pageId}). This action cannot be undone. Do you want to proceed?`;
+      debug(confirmationMessage);
 
-      // This would normally require user confirmation
-      console.log(confirmationMessage);
-
-      // Create a backup first unless explicitly skipped (crucial for delete operations)
       let backupInfo = null;
       if (!skipBackup) {
         try {
           backupInfo = await backupPage(notion, pageId);
-          console.log(
-            `Created backup at ${backupInfo.backupPath} before deletion`
-          );
+          debug(`Created backup at ${backupInfo.backupPath} before deletion`);
         } catch (backupError) {
           console.error(
             "Failed to create backup before deletion:",
             backupError
           );
-          // For deletion, we might want to abort if backup fails
           return {
             isError: true,
             content: [
@@ -480,11 +647,7 @@ server.tool(
           };
         }
       }
-
-      // In a real implementation, this would wait for user confirmation
-      // For now, we'll proceed with deletion
       await deletePage(notion, pageId);
-
       return {
         content: [
           {
@@ -503,6 +666,59 @@ server.tool(
           {
             type: "text",
             text: `Error deleting page: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Tool: Generate context summary
+server.tool(
+  "generate-context-summary",
+  "Generate a summary of current Notion workspace context",
+  {
+    maxItems: z
+      .number()
+      .optional()
+      .default(5)
+      .describe("Maximum number of items to include in the summary"),
+  },
+  async ({ maxItems }) => {
+    try {
+      const updates = await fetchRecentUpdates(notion, maxItems);
+      let summary = "## Notion Workspace Summary\n\n";
+      if (updates.length === 0) {
+        summary += "No recent updates in your workspace.\n";
+      } else {
+        summary += "### Recent Updates\n";
+        updates.forEach((update, index) => {
+          summary += `${index + 1}. ${update.title} - ${update.lastEdited}\n`;
+          if (update.type === "page" && "parent" in update) {
+            summary += `   Page in ${update.parent}\n`;
+          } else if (update.type === "database" && "itemCount" in update) {
+            summary += `   Database with ${update.itemCount} items\n`;
+          }
+        });
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: summary,
+          },
+        ],
+      };
+    } catch (error) {
+      console.error("Error generating context summary:", error);
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: `Error generating context summary: ${
               error instanceof Error ? error.message : String(error)
             }`,
           },
@@ -560,9 +776,7 @@ server.tool(
               ],
             };
           }
-
           const backups = listPageBackups(pageId);
-
           if (backups.length === 0) {
             return {
               content: [
@@ -573,7 +787,6 @@ server.tool(
               ],
             };
           }
-
           let backupsList = `Available backups for page ${pageId}:\n\n`;
           backups.forEach((backup, index) => {
             backupsList += `${index + 1}. ${backup.filename}\n`;
@@ -582,7 +795,6 @@ server.tool(
             ).toLocaleString()}\n`;
             backupsList += `   Size: ${Math.round(backup.size / 1024)} KB\n\n`;
           });
-
           return {
             content: [{ type: "text", text: backupsList }],
           };
@@ -599,14 +811,10 @@ server.tool(
               ],
             };
           }
-
-          // This would normally require user confirmation
-          console.log(
+          debug(
             `You are about to restore page from backup ${backupFilename}. This will overwrite the current page content. Do you want to proceed?`
           );
-
           const restoreResult = await restoreFromBackup(notion, backupFilename);
-
           return {
             content: [
               {
@@ -621,7 +829,6 @@ server.tool(
             maxBackupsPerPage,
             maxBackupAgeDays
           );
-
           return {
             content: [
               {
@@ -656,68 +863,8 @@ server.tool(
   }
 );
 
-// Tool: Generate context summary
-server.tool(
-  "generate-context-summary",
-  "Generate a summary of current Notion workspace context",
-  {
-    maxItems: z
-      .number()
-      .optional()
-      .default(5)
-      .describe("Maximum number of items to include in the summary"),
-  },
-  async ({ maxItems }) => {
-    try {
-      const updates = await fetchRecentUpdates(notion, maxItems);
-
-      // Format the updates into a readable summary
-      let summary = "## Notion Workspace Summary\n\n";
-
-      if (updates.length === 0) {
-        summary += "No recent updates in your workspace.\n";
-      } else {
-        summary += "### Recent Updates\n";
-        updates.forEach((update, index) => {
-          summary += `${index + 1}. ${update.title} - ${update.lastEdited}\n`;
-
-          // Type guard to check for specific update types
-          if (update.type === "page" && "parent" in update) {
-            summary += `   Page in ${update.parent}\n`;
-          } else if (update.type === "database" && "itemCount" in update) {
-            summary += `   Database with ${update.itemCount} items\n`;
-          }
-        });
-      }
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: summary,
-          },
-        ],
-      };
-    } catch (error) {
-      console.error("Error generating context summary:", error);
-      return {
-        isError: true,
-        content: [
-          {
-            type: "text",
-            text: `Error generating context summary: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          },
-        ],
-      };
-    }
-  }
-);
-
 // ========== PROMPTS ==========
 
-// Prompt: Upcoming deadlines
 server.prompt(
   "upcoming-deadlines",
   "Get a list of upcoming deadlines",
@@ -730,8 +877,6 @@ server.prompt(
   },
   async (args) => {
     const { databaseId, days = "7" } = args;
-
-    // This would typically format a good query for an LLM to process
     return {
       messages: [
         {
@@ -748,7 +893,6 @@ server.prompt(
   }
 );
 
-// Prompt: Summarize project status
 server.prompt(
   "project-status",
   "Summarize the status of a project",
@@ -757,7 +901,6 @@ server.prompt(
   },
   async (args) => {
     const { projectId } = args;
-
     return {
       messages: [
         {
@@ -772,10 +915,8 @@ server.prompt(
   }
 );
 
-// Prompt: Daily task list
 server.prompt("daily-tasks", "Get a list of tasks for today", {}, async () => {
   const today = new Date().toISOString().split("T")[0];
-
   return {
     messages: [
       {
@@ -792,14 +933,12 @@ server.prompt("daily-tasks", "Get a list of tasks for today", {}, async () => {
 // Start the server
 async function main() {
   try {
-    // Create backup directory if it doesn't exist
     const fs = await import("fs");
     if (!fs.existsSync(CONFIG.BACKUP_DIR)) {
       fs.mkdirSync(CONFIG.BACKUP_DIR, { recursive: true });
       debug(`Created backup directory: ${CONFIG.BACKUP_DIR}`);
     }
 
-    // Test Notion connection
     debug("Testing Notion API connection...");
     try {
       const user = await notion.users.me({});
@@ -810,7 +949,6 @@ async function main() {
       process.exit(1);
     }
 
-    // Schedule periodic backup cleanups
     const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000; // Once per day
     setInterval(() => {
       debug(`Running scheduled backup cleanup...`);
@@ -820,20 +958,16 @@ async function main() {
       );
     }, CLEANUP_INTERVAL);
 
-    // Run initial backup cleanup
     debug(`Running initial backup cleanup...`);
     cleanupOldBackups(
       CONFIG.MAX_BACKUPS_PER_PAGE,
       CONFIG.BACKUP_RETENTION_DAYS
     );
 
-    // Initialize with stdio transport for local usage
     const transport = new StdioServerTransport();
     await server.connect(transport);
-
     console.error("Notion MCP Server running on stdio");
 
-    // Set up graceful shutdown
     process.on("SIGINT", async () => {
       console.error("Shutting down Notion MCP Server...");
       try {

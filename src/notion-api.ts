@@ -5,6 +5,44 @@ import { LogLevel } from "@notionhq/client";
 const DEFAULT_PAGE_SIZE = 100;
 
 /**
+ * Validates each block in the provided blocks array.
+ * If a block is missing the required content property, logs an error and replaces it with a safe default paragraph block.
+ */
+function validateBlocks(blocks: any[]): any[] {
+  return blocks.map((block, index) => {
+    if (!block.type) {
+      console.error(
+        `Block at index ${index} is missing the 'type' field. Replacing with default paragraph block.`
+      );
+      return {
+        type: "paragraph",
+        object: "block",
+        paragraph: {
+          rich_text: [
+            { text: { content: "Invalid block removed." }, type: "text" },
+          ],
+        },
+      };
+    }
+    if (typeof block[block.type] === "undefined") {
+      console.error(
+        `Block at index ${index} of type ${block.type} is missing its content property. Replacing with default paragraph block.`
+      );
+      return {
+        type: "paragraph",
+        object: "block",
+        paragraph: {
+          rich_text: [
+            { text: { content: "Invalid block removed." }, type: "text" },
+          ],
+        },
+      };
+    }
+    return block;
+  });
+}
+
+/**
  * Fetch all databases from the Notion workspace
  */
 export async function fetchDatabases(notion: Client) {
@@ -16,7 +54,6 @@ export async function fetchDatabases(notion: Client) {
       },
       page_size: DEFAULT_PAGE_SIZE,
     });
-
     return response.results.map((database: any) => ({
       id: database.id,
       title: extractDatabaseTitle(database),
@@ -35,18 +72,13 @@ export async function fetchDatabases(notion: Client) {
  */
 export async function fetchPages(notion: Client, databaseId: string) {
   try {
-    // First, get the database to understand its schema
     const database = await notion.databases.retrieve({
       database_id: databaseId,
     });
-
-    // Fetch pages from the database
     const response = await notion.databases.query({
       database_id: databaseId,
       page_size: DEFAULT_PAGE_SIZE,
     });
-
-    // Process the pages to extract key information
     return {
       database: {
         id: database.id,
@@ -54,14 +86,10 @@ export async function fetchPages(notion: Client, databaseId: string) {
       },
       pages: await Promise.all(
         response.results.map(async (page: any) => {
-          // Extract page title (if available)
           let title = "Untitled";
-
-          // Find title property (usually "Name", "Title", etc.)
           const titleProperty = Object.entries(page.properties).find(
-            ([_, value]: [string, any]) => value.type === "title"
+            ([, value]: [string, any]) => value.type === "title"
           );
-
           if (
             titleProperty &&
             titleProperty[1] &&
@@ -71,8 +99,6 @@ export async function fetchPages(notion: Client, databaseId: string) {
             title =
               titleValue.length > 0 ? titleValue[0].plain_text : "Untitled";
           }
-
-          // Return formatted page data
           return {
             id: page.id,
             title,
@@ -95,18 +121,14 @@ export async function fetchPages(notion: Client, databaseId: string) {
  */
 export async function fetchPageContent(notion: Client, pageId: string) {
   try {
-    // Get the page itself
     const page = await notion.pages.retrieve({
       page_id: pageId,
     });
-
-    // Get the page blocks (content)
     const blocks = await fetchAllBlocks(notion, pageId);
-
     return {
       page: {
         id: page.id,
-        url: (page as any).url, // Type assertion for properties not in PartialPageObjectResponse
+        url: (page as any).url,
         created_time: (page as any).created_time,
         last_edited_time: (page as any).last_edited_time,
         properties: (page as any).properties,
@@ -128,29 +150,23 @@ async function fetchAllBlocks(
   maxDepth = 3,
   currentDepth = 0
 ) {
-  // Prevent excessive recursion
   if (currentDepth >= maxDepth) {
     return [];
   }
-
   try {
     const blocks: any[] = [];
     let hasMore = true;
     let cursor: string | undefined = undefined;
-
     while (hasMore) {
       const response = await notion.blocks.children.list({
         block_id: blockId,
         page_size: DEFAULT_PAGE_SIZE,
         ...(cursor ? { start_cursor: cursor } : {}),
       });
-
       blocks.push(...response.results);
       hasMore = response.has_more;
       cursor = response.next_cursor || undefined;
     }
-
-    // Process blocks and fetch children if needed
     const processedBlocks = [];
     for (const block of blocks) {
       const processedBlock: any = {
@@ -159,10 +175,8 @@ async function fetchAllBlocks(
         has_children: block.has_children,
         created_time: block.created_time,
         last_edited_time: block.last_edited_time,
-        ...block[block.type as string], // Spread the content based on block type
+        ...block[block.type as string],
       };
-
-      // Recursively fetch children if this block has them
       if (block.has_children) {
         processedBlock.children = await fetchAllBlocks(
           notion,
@@ -171,10 +185,8 @@ async function fetchAllBlocks(
           currentDepth + 1
         );
       }
-
       processedBlocks.push(processedBlock);
     }
-
     return processedBlocks;
   } catch (error) {
     console.error(`Error fetching blocks for ${blockId}:`, error);
@@ -191,27 +203,19 @@ export async function searchNotion(
   filter?: any
 ) {
   try {
-    // Prepare the search parameters
     const searchParams: any = {
       query,
       page_size: DEFAULT_PAGE_SIZE,
     };
-
-    // Add filter if provided
     if (filter?.object) {
       searchParams.filter = {
         property: "object",
         value: filter.object,
       };
     }
-
-    // Execute the search
     const response = await notion.search(searchParams);
-
-    // Process and return search results
     return {
       results: response.results.map((result: any) => {
-        // Common properties for all result types
         const common = {
           id: result.id,
           object: result.object,
@@ -219,8 +223,6 @@ export async function searchNotion(
           created_time: result.created_time,
           last_edited_time: result.last_edited_time,
         };
-
-        // Add object-specific properties
         if (result.object === "page") {
           return {
             ...common,
@@ -236,7 +238,6 @@ export async function searchNotion(
         } else {
           return {
             ...common,
-            // Add any other object type properties as needed
           };
         }
       }),
@@ -259,7 +260,6 @@ export async function createPage(
   content?: any[]
 ) {
   try {
-    // Prepare the parent object based on provided IDs
     let parentObject: any = {};
     if (parent.databaseId) {
       parentObject.database_id = parent.databaseId;
@@ -268,18 +268,14 @@ export async function createPage(
     } else {
       throw new Error("Either databaseId or pageId must be provided");
     }
-
-    // Create the page
     const newPage = await notion.pages.create({
       parent: parentObject,
       properties,
     });
-
-    // If content blocks are provided, add them to the page
     if (content && content.length > 0) {
-      await addBlocksToPage(notion, newPage.id, content);
+      const validatedContent = validateBlocks(content);
+      await addBlocksToPage(notion, newPage.id, validatedContent);
     }
-
     return newPage;
   } catch (error) {
     console.error("Error creating page:", error);
@@ -298,32 +294,20 @@ export async function updatePage(
 ) {
   try {
     let updatedPage;
-
-    // Update properties if provided
     if (properties) {
       updatedPage = await notion.pages.update({
         page_id: pageId,
         properties,
       });
     }
-
-    // If content blocks are provided, replace the page's content
     if (content && content.length > 0) {
-      // First, clear existing blocks
-      const blocks = await notion.blocks.children.list({
-        block_id: pageId,
-      });
-
+      const blocks = await notion.blocks.children.list({ block_id: pageId });
       for (const block of blocks.results) {
-        await notion.blocks.delete({
-          block_id: block.id,
-        });
+        await notion.blocks.delete({ block_id: block.id });
       }
-
-      // Then add new blocks
-      await addBlocksToPage(notion, pageId, content);
+      const validatedContent = validateBlocks(content);
+      await addBlocksToPage(notion, pageId, validatedContent);
     }
-
     return updatedPage || { id: pageId };
   } catch (error) {
     console.error(`Error updating page ${pageId}:`, error);
@@ -336,12 +320,10 @@ export async function updatePage(
  */
 export async function deletePage(notion: Client, pageId: string) {
   try {
-    // In Notion, "deleting" a page actually archives it
     await notion.pages.update({
       page_id: pageId,
       archived: true,
     });
-
     return { success: true };
   } catch (error) {
     console.error(`Error deleting page ${pageId}:`, error);
@@ -354,11 +336,11 @@ export async function deletePage(notion: Client, pageId: string) {
  */
 async function addBlocksToPage(notion: Client, pageId: string, blocks: any[]) {
   try {
+    const validatedBlocks = validateBlocks(blocks);
     await notion.blocks.children.append({
       block_id: pageId,
-      children: blocks,
+      children: validatedBlocks,
     });
-
     return { success: true };
   } catch (error) {
     console.error(`Error adding blocks to page ${pageId}:`, error);
@@ -371,7 +353,6 @@ async function addBlocksToPage(notion: Client, pageId: string, blocks: any[]) {
  */
 export async function fetchRecentUpdates(notion: Client, maxItems = 10) {
   try {
-    // Search for recently modified pages and databases
     const response = await notion.search({
       sort: {
         direction: "descending",
@@ -379,8 +360,6 @@ export async function fetchRecentUpdates(notion: Client, maxItems = 10) {
       },
       page_size: maxItems,
     });
-
-    // Process the results
     return response.results.map((item: any) => {
       const common = {
         id: item.id,
@@ -388,7 +367,6 @@ export async function fetchRecentUpdates(notion: Client, maxItems = 10) {
         url: item.url,
         type: item.object,
       };
-
       if (item.object === "page") {
         return {
           ...common,
@@ -404,7 +382,7 @@ export async function fetchRecentUpdates(notion: Client, maxItems = 10) {
         return {
           ...common,
           title: extractDatabaseTitle(item),
-          itemCount: 0, // We would need an additional query to get this
+          itemCount: 0,
         };
       } else {
         return {
@@ -423,12 +401,10 @@ export async function fetchRecentUpdates(notion: Client, maxItems = 10) {
  * Helper function to extract a page title
  */
 function extractPageTitle(page: any): string {
-  // Look for a title property in the page
   if (page.properties) {
     const titleProperty = Object.entries(page.properties).find(
-      ([_, value]: [string, any]) => value.type === "title"
+      ([, value]: [string, any]) => value.type === "title"
     );
-
     if (titleProperty && titleProperty[1] && (titleProperty[1] as any).title) {
       const titleValue = (titleProperty[1] as any).title;
       if (titleValue?.length > 0) {
@@ -436,8 +412,6 @@ function extractPageTitle(page: any): string {
       }
     }
   }
-
-  // Fallback if no title property is found
   return "Untitled";
 }
 
