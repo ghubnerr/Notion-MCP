@@ -4,7 +4,8 @@
         "command": "node",
         "args": ["/absolute/path/to/notion-mcp-server/build/index.js"],
         "env": {
-          "NOTION_API_KEY": "your_notion_api_key_here"
+          "NOTION_API_KEY": "your_notion_api_key_here",
+          "BACKUP_DIR": "/absolute/path/to/your/notion-mcp-server/backups"
         }
       }
     }
