@@ -2,35 +2,6 @@
 
 A Model Context Protocol (MCP) server for integrating with Notion workspaces. This server provides a standardized interface for AI models to access, query, and modify content in Notion.
 
-## Features
-
-### Workspace Integration
-
-- 🔐 **Authentication & Authorization**: Secure connection to your Notion workspace using API keys
-- 📊 **Data Fetching**: Retrieves databases, pages, and content from your Notion workspace
-- 🔄 **Real-Time Monitoring**: Access to recent updates and changes in your workspace
-
-### Resource Exposure
-
-- 📑 **Database Schemas**: Exposes structure and properties of your Notion databases
-- 📝 **Page Content**: Provides access to individual pages with full content hierarchy
-- 📰 **Activity Feed**: Aggregates recent changes into a summarized activity feed
-
-### Tools & Prompts
-
-- 🔍 **Search**: Full Notion search capabilities
-- ✏️ **CRUD Operations**: Create, read, update, and delete Notion content
-- 📋 **Context Summarization**: Generate summaries of workspace state
-- 💬 **Pre-Configured Prompts**: Templates for common queries like task lists and deadlines
-
-### Safety & Audit
-
-- 🔒 **Secure Operations**: Proper authentication and confirmation for data modifications
-- 📝 **Logging**: Comprehensive logging of all operations
-- ✅ **Confirmation**: User prompts and approvals for critical changes
-- 💾 **Automatic Backups**: Creates backups before modifying or deleting content
-- 🔄 **Backup Management**: Tools to list, restore, and clean up backups
-
 ## Prerequisites
 
 - Node.js (v16 or higher)
@@ -121,7 +92,7 @@ The server exposes the following resources:
 | `notion://pages/{pageId}`                 | Retrieves the content of a specific page              |
 | `notion://updates`                        | Retrieves recent updates and changes in the workspace |
 
-## Tools
+# Tools
 
 The server provides the following tools:
 
@@ -148,38 +119,6 @@ Once connected to Claude, you can ask natural language questions about your Noti
 7. "Show me all backups for page abc123"
 8. "Restore page abc123 from the backup file page_abc123_2023-01-01.json"
 
-## Security Considerations
-
-This server provides full read and write access to your Notion workspace. To ensure security:
-
-- Keep your Notion API key secure and never share it
-- Be cautious when providing delete/archive permissions
-- Review all changes before approving them
-- Consider using a dedicated integration with limited access permissions
-- Monitor activity logs regularly for unauthorized changes
-
-## Development
-
-### Project Structure
-
-```
-notion-mcp-server/
-├── src/
-│   ├── index.ts          # Main server entry point
-│   └── notion-api.ts     # Notion API integration
-├── build/                # Compiled JavaScript output
-├── .env                  # Environment variables
-├── package.json          # Project dependencies
-└── README.md             # This documentation
-```
-
-### Available Scripts
-
-- `npm run build`: Compile TypeScript files
-- `npm start`: Start the server
-- `npm run dev`: Start the server in development mode with hot reloading
-- `npm test`: Run tests
-
 ### Extending the Server
 
 To add new functionality:
@@ -189,15 +128,6 @@ To add new functionality:
 3. **Add Prompts**: Define new prompt templates in `index.ts`
 4. **Enhance API Integration**: Add new API functions in `notion-api.ts`
 
-## Troubleshooting
-
-### Common Issues
-
-- **Authentication Errors**: Ensure your Notion API key is valid and has the necessary permissions
-- **Rate Limiting**: Notion API has rate limits; add retries for heavy usage
-- **Missing Permissions**: Check that your integration has been properly shared with the pages/databases you're accessing
-- **Connection Issues**: Verify network connectivity and Notion API status
-
 ### Logs
 
 Check server logs for detailed error information:
@@ -205,16 +135,3 @@ Check server logs for detailed error information:
 - **Claude for Desktop Logs**: Look in the Claude logs directory for MCP-related logs
 - **Server Output**: Check standard output and error streams for server logs
 
-## License
-
-MIT
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
